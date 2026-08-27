@@ -27,6 +27,9 @@ class OptionsPopover(Gtk.Popover):
         box.set_margin_end(12)
         self.set_child(box)
 
+        lbl_target = Gtk.Label(label="Attached to:", xalign=0)
+        box.append(lbl_target)
+
         group_head = None
         for opt in options:
             btn = Gtk.CheckButton.new_with_label(str(opt))
