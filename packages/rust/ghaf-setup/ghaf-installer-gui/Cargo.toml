@@ -31,3 +31,6 @@ git = "https://github.com/pop-os/libcosmic"
 rev = "1f6dc991eaa5115a09be2505cc8a323e5b2b0bff"
 default-features = false
 features = ["tokio", "wayland", "winit"]
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
