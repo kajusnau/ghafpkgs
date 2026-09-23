@@ -21,6 +21,7 @@ path = [
   "packages/art/ghaf-artwork/**/*.jpg",
   "packages/art/ghaf-artwork/**/*.svg",
   "packages/art/ghaf-theme/**/*.svg",
+  "packages/rust/ghaf-setup/ghaf-installer-gui/assets/*.png",
   "packages/cpp/ghaf-audio-control/src/.gitignore",
   "packages/go/swtpm-proxy-shim/go.sum",
   "packages/python/ldap-query/ldap-query/README.md",
