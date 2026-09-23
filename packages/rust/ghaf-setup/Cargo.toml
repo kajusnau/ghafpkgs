@@ -3,7 +3,7 @@
 
 [workspace]
 resolver = "3"
-members = ["ghaf-setup-core"]
+members = ["ghaf-setup-core", "ghaf-setup-ui"]
 
 [workspace.package]
 version = "0.1.0"
