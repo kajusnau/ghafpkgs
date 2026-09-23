@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 TII (SSRC) and the Ghaf contributors
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "ghaf-setup-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# The revision ghaf-usb-passthrough-applet uses; keep the two in step. A newer
+# libcosmic expects theme config keys the target's COSMIC lacks.
+[dependencies.libcosmic]
+git = "https://github.com/pop-os/libcosmic"
+rev = "1f6dc991eaa5115a09be2505cc8a323e5b2b0bff"
+default-features = false
+features = ["tokio", "wayland", "winit"]
