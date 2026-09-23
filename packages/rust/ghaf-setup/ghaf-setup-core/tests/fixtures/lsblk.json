@@ -1,0 +1,46 @@
+{
+  "blockdevices": [
+    {
+      "name": "nvme0n1",
+      "path": "/dev/nvme0n1",
+      "size": 1024209543168,
+      "type": "disk",
+      "rm": false,
+      "ro": false,
+      "model": "KXG8AZNV1T02 LA KIOXIA",
+      "tran": "nvme",
+      "children": [
+        {
+          "name": "nvme0n1p1",
+          "path": "/dev/nvme0n1p1",
+          "size": 536870912,
+          "type": "part",
+          "rm": false,
+          "ro": false,
+          "model": null,
+          "tran": "nvme"
+        }
+      ]
+    },
+    {
+      "name": "sda",
+      "path": "/dev/sda",
+      "size": 30765219840,
+      "type": "disk",
+      "rm": true,
+      "ro": false,
+      "model": "Ultra USB 3.0",
+      "tran": "usb"
+    },
+    {
+      "name": "sr0",
+      "path": "/dev/sr0",
+      "size": 1073741824,
+      "type": "rom",
+      "rm": true,
+      "ro": true,
+      "model": "Virtual CD",
+      "tran": "sata"
+    }
+  ]
+}
