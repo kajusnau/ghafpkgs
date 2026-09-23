@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 TII (SSRC) and the Ghaf contributors
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "ghaf-installer-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "ghaf_installer_gui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ghaf-installer-gui"
+path = "src/main.rs"
+
+[dependencies]
+ghaf-setup-core = { path = "../ghaf-setup-core" }
+ghaf-setup-ui = { path = "../ghaf-setup-ui" }
+indexmap = "2.7.1"
+ron = "0.12.2"
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+# Same revision as ghaf-setup-ui.
+[dependencies.libcosmic]
+git = "https://github.com/pop-os/libcosmic"
+rev = "1f6dc991eaa5115a09be2505cc8a323e5b2b0bff"
+default-features = false
+features = ["tokio", "wayland", "winit"]
