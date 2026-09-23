@@ -6,4 +6,5 @@
   ghaf-usb-passthrough-applet = callPackage ./ghaf-usb-passthrough-applet { inherit crane; };
   ghaf-mem-manager = callPackage ./ghaf-mem-manager { inherit crane; };
   ghaf-nw-packet-forwarder = callPackage ./ghaf-nw-packet-forwarder { inherit crane; };
+  ghaf-setup = callPackage ./ghaf-setup { inherit crane; };
 }
