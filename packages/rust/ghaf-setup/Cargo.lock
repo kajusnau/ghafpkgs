@@ -1773,7 +1773,6 @@ dependencies = [
  "ghaf-setup-ui",
  "indexmap",
  "libcosmic",
- "ron",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -1797,6 +1796,8 @@ name = "ghaf-setup-ui"
 version = "0.1.0"
 dependencies = [
  "libcosmic",
+ "ron",
+ "tracing",
 ]
 
 [[package]]

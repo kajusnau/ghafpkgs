@@ -40,7 +40,7 @@ fn main() -> cosmic::iced::Result {
         Settings::default().size_limits(Limits::NONE.max_width(MAX_WIDTH).max_height(MAX_HEIGHT));
     if let Some(theme) = std::env::var("XDG_DATA_DIRS")
         .ok()
-        .and_then(|dirs| ghaf_installer_gui::theme::load(&dirs))
+        .and_then(|dirs| ghaf_setup_ui::theme::load(&dirs))
     {
         settings = settings.theme(theme);
     }

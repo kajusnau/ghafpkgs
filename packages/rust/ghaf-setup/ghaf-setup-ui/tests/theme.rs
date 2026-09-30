@@ -3,7 +3,7 @@
 
 use cosmic::cosmic_theme::ThemeBuilder;
 use cosmic::cosmic_theme::palette::Srgb;
-use ghaf_installer_gui::theme::load;
+use ghaf_setup_ui::theme::load;
 use std::path::PathBuf;
 
 fn data_dir(name: &str) -> PathBuf {

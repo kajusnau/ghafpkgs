@@ -8,6 +8,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+ron = "0.12.2"
+tracing.workspace = true
 # The revision ghaf-usb-passthrough-applet uses; keep the two in step. A newer
 # libcosmic expects theme config keys the target's COSMIC lacks.
 [dependencies.libcosmic]

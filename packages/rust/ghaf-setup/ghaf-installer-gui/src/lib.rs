@@ -3,4 +3,3 @@
 
 pub mod boot_device;
 pub mod page;
-pub mod theme;
