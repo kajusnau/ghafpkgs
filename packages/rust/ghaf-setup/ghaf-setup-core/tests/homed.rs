@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use ghaf_setup_core::homed::{
-    AccountConfig, UsernameError, fido_token_present, parse_config, username_available,
-    validate_real_name, validate_username,
+    AccountConfig, AccountRequest, UsernameError, create_account, fido_token_present, parse_config,
+    username_available, validate_real_name, validate_username,
 };
 use ghaf_setup_core::proc::RecordingRunner;
+use ghaf_setup_core::progress::{Phase, ProgressEvent};
+use tokio::sync::mpsc::unbounded_channel;
 
 #[test]
 fn reads_the_config_user_provision_nix_writes() {
@@ -80,4 +82,170 @@ async fn fido_is_offered_only_when_a_token_is_listed() {
     let broken = RecordingRunner::new();
     broken.push_fail(1, "fido2-token: not found");
     assert!(!fido_token_present(&broken).await);
+}
+
+fn request() -> AccountRequest {
+    AccountRequest {
+        username: "alice".into(),
+        real_name: "Alice Liddell".into(),
+        password: "correct horse".into(),
+        fido: false,
+        pin: None,
+    }
+}
+
+#[tokio::test]
+async fn creates_the_account_with_the_shells_homectl_arguments() {
+    let runner = RecordingRunner::new();
+    runner.push_ok("fhkbl-rtgvb-ltnri-kfbdv-ejirn-dcvgi-knlrv-vdlhb\n");
+    let config = AccountConfig {
+        uid: Some(1000),
+        ..AccountConfig::default()
+    };
+    let (tx, _rx) = unbounded_channel();
+
+    let key = create_account(&runner, &config, &request(), &tx)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        key.unwrap().0,
+        "fhkbl-rtgvb-ltnri-kfbdv-ejirn-dcvgi-knlrv-vdlhb"
+    );
+    let (program, args) = runner.calls().remove(0);
+    assert_eq!(program, "homectl");
+    assert_eq!(
+        args,
+        [
+            "--no-ask-password",
+            "create",
+            "alice",
+            "--real-name=Alice Liddell",
+            "--skel=/etc/skel",
+            "--storage=luks",
+            "--luks-pbkdf-type=argon2id",
+            "--fs-type=ext4",
+            "--disk-size=10000M",
+            "--drop-caches=true",
+            "--nosuid=true",
+            "--noexec=true",
+            "--nodev=true",
+            "--member-of=users",
+            "--shell=/run/current-system/sw/bin/bash",
+            "--enforce-password-policy=true",
+            "--recovery-key=true",
+            "--uid=1000",
+        ]
+    );
+}
+
+#[tokio::test]
+async fn the_recovery_key_is_the_last_line_of_stdout() {
+    let runner = RecordingRunner::new();
+    runner.push_ok("Please note the recovery key:\nfhkbl-rtgvb-ltnri\n\n");
+    let (tx, _rx) = unbounded_channel();
+
+    let key = create_account(&runner, &AccountConfig::default(), &request(), &tx)
+        .await
+        .unwrap();
+
+    assert_eq!(key.unwrap().0, "fhkbl-rtgvb-ltnri");
+}
+
+#[tokio::test]
+async fn the_password_goes_through_the_environment_only() {
+    let runner = RecordingRunner::new();
+    runner.push_ok("key\n");
+    let (tx, _rx) = unbounded_channel();
+
+    create_account(&runner, &AccountConfig::default(), &request(), &tx)
+        .await
+        .unwrap();
+
+    assert!(
+        !runner.calls()[0]
+            .1
+            .iter()
+            .any(|a| a.contains("correct horse"))
+    );
+    assert_eq!(
+        runner.envs()[0],
+        [("NEWPASSWORD".to_string(), "correct horse".to_string())]
+    );
+}
+
+#[tokio::test]
+async fn fido_adds_the_device_and_passes_the_pin() {
+    let runner = RecordingRunner::new();
+    runner.push_ok("key\n");
+    let (tx, _rx) = unbounded_channel();
+    let request = AccountRequest {
+        fido: true,
+        pin: Some("1234".into()),
+        ..request()
+    };
+
+    create_account(&runner, &AccountConfig::default(), &request, &tx)
+        .await
+        .unwrap();
+
+    assert!(
+        runner.calls()[0]
+            .1
+            .contains(&"--fido2-device=auto".to_string())
+    );
+    assert!(runner.envs()[0].contains(&("PIN".to_string(), "1234".to_string())));
+}
+
+#[tokio::test]
+async fn a_failed_create_is_reported_as_retryable() {
+    let runner = RecordingRunner::new();
+    runner.push_fail(1, "Password too weak: it is based on a dictionary word");
+    let (tx, mut rx) = unbounded_channel();
+
+    let result = create_account(&runner, &AccountConfig::default(), &request(), &tx).await;
+
+    assert!(result.is_err());
+    let mut failed = None;
+    while let Ok(event) = rx.try_recv() {
+        if let ProgressEvent::Failed {
+            phase,
+            message,
+            recoverable,
+        } = event
+        {
+            failed = Some((phase, recoverable, message));
+        }
+    }
+    let (phase, recoverable, message) = failed.unwrap();
+    assert_eq!(phase, Phase::CreateAccount);
+    assert!(recoverable, "homectl leaves nothing behind on failure");
+    assert!(message.contains("too weak"));
+}
+
+#[test]
+fn a_request_never_prints_its_secrets() {
+    let request = AccountRequest {
+        pin: Some("1234".into()),
+        ..request()
+    };
+    let debug = format!("{request:?}");
+    assert!(!debug.contains("correct horse") && !debug.contains("1234"));
+}
+
+#[tokio::test]
+async fn an_invalid_username_is_refused_before_homectl_runs() {
+    let runner = RecordingRunner::new();
+    let (tx, _rx) = unbounded_channel();
+    let request = AccountRequest {
+        username: "Bad Name".into(),
+        ..request()
+    };
+
+    assert!(
+        create_account(&runner, &AccountConfig::default(), &request, &tx)
+            .await
+            .is_err()
+    );
+    assert!(runner.calls().is_empty());
 }

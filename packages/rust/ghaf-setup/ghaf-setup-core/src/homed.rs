@@ -5,6 +5,7 @@
 //! systemd-homed. Mirrors `user-provision.sh`'s local-user flow.
 
 use crate::proc::{CommandRunner, CoreError};
+use crate::progress::{Phase, ProgressEvent, ProgressSender};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -154,4 +155,112 @@ pub async fn fido_token_present(runner: &dyn CommandRunner) -> bool {
         .run("fido2-token", &["-L"])
         .await
         .is_ok_and(|output| !output.stdout.trim().is_empty())
+}
+
+/// What the user entered. Held only until `homectl` has run.
+#[derive(Clone)]
+pub struct AccountRequest {
+    pub username: String,
+    pub real_name: String,
+    pub password: String,
+    pub fido: bool,
+    /// The FIDO2 token's PIN, when it has one.
+    pub pin: Option<String>,
+}
+
+impl std::fmt::Debug for AccountRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AccountRequest")
+            .field("username", &self.username)
+            .field("real_name", &self.real_name)
+            .field("fido", &self.fido)
+            .finish_non_exhaustive()
+    }
+}
+
+/// The key that unlocks the home area without the password. Shown once.
+#[derive(Clone, PartialEq, Eq)]
+pub struct RecoveryKey(pub String);
+
+impl std::fmt::Debug for RecoveryKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("RecoveryKey(..)")
+    }
+}
+
+pub async fn create_account(
+    runner: &dyn CommandRunner,
+    config: &AccountConfig,
+    request: &AccountRequest,
+    progress: &ProgressSender,
+) -> Result<Option<RecoveryKey>, CoreError> {
+    validate_username(&request.username).map_err(|e| CoreError::Validation(e.to_string()))?;
+    validate_real_name(&request.real_name).map_err(CoreError::Validation)?;
+
+    let _ = progress.send(ProgressEvent::PhaseStarted(Phase::CreateAccount));
+
+    let owned = [
+        format!("--real-name={}", request.real_name),
+        format!("--fs-type={}", config.fs_type),
+        format!("--disk-size={}M", config.home_size_mib),
+        format!("--member-of={}", config.groups),
+        format!("--shell={}", config.shell),
+    ];
+    let uid = config.uid.map(|uid| format!("--uid={uid}"));
+    // A prompt nobody can see would hang the run: fail with stderr instead.
+    let mut args = vec![
+        "--no-ask-password",
+        "create",
+        &request.username,
+        &owned[0],
+        "--skel=/etc/skel",
+        "--storage=luks",
+        "--luks-pbkdf-type=argon2id",
+        &owned[1],
+        &owned[2],
+        "--drop-caches=true",
+        "--nosuid=true",
+        "--noexec=true",
+        "--nodev=true",
+        &owned[3],
+        &owned[4],
+        "--enforce-password-policy=true",
+        "--recovery-key=true",
+    ];
+    args.extend(uid.as_deref());
+    if request.fido {
+        args.push("--fido2-device=auto");
+    }
+
+    let mut env = vec![("NEWPASSWORD", request.password.as_str())];
+    env.extend(request.pin.as_deref().map(|pin| ("PIN", pin)));
+
+    match runner.run_env("homectl", &args, &env).await {
+        Ok(output) => {
+            let _ = progress.send(ProgressEvent::PhaseFinished(Phase::CreateAccount));
+            let key = output
+                .stdout
+                .lines()
+                .map(str::trim)
+                .rfind(|line| !line.is_empty())
+                .unwrap_or_default();
+            Ok((!key.is_empty()).then(|| RecoveryKey(key.to_string())))
+        }
+        Err(error) => {
+            // homectl removes a half-made home area itself, so the user can
+            // correct the input and try again.
+            let message = match &error {
+                CoreError::Command { stderr, .. } if !stderr.trim().is_empty() => {
+                    stderr.trim().to_string()
+                }
+                other => other.to_string(),
+            };
+            let _ = progress.send(ProgressEvent::Failed {
+                phase: Phase::CreateAccount,
+                message,
+                recoverable: true,
+            });
+            Err(error)
+        }
+    }
 }
