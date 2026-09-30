@@ -4,7 +4,7 @@
 //! Runs an install or erase, and holds each step on screen long enough to
 //! be read.
 
-use ghaf_setup_core::progress::{Phase, ProgressEvent, ProgressSender};
+use crate::progress::{Phase, ProgressEvent, ProgressSender};
 use std::future::Future;
 use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};

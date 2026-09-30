@@ -1769,7 +1769,6 @@ dependencies = [
 name = "ghaf-installer-gui"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "ghaf-setup-core",
  "ghaf-setup-ui",
  "indexmap",

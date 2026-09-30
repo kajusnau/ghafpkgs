@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 TII (SSRC) and the Ghaf contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use ghaf_installer_gui::pace::{Update, pace, run};
+use ghaf_setup_core::pace::{Update, pace, run};
 use ghaf_setup_core::progress::{Phase, ProgressEvent};
 use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};

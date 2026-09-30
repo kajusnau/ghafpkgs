@@ -6,6 +6,8 @@
 
 pub mod disk;
 pub mod install;
+pub mod log_runner;
+pub mod pace;
 pub mod proc;
 pub mod progress;
 

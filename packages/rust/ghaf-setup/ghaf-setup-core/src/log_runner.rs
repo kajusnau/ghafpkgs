@@ -3,9 +3,9 @@
 
 //! Copies every command and its output into the running page's log.
 
+use crate::proc::{CommandRunner, CoreError, Output};
+use crate::progress::{ProgressEvent, ProgressSender};
 use async_trait::async_trait;
-use ghaf_setup_core::proc::{CommandRunner, CoreError, Output};
-use ghaf_setup_core::progress::{ProgressEvent, ProgressSender};
 
 /// Output lines kept per command: enough to follow along, not a dump of
 /// lsblk's JSON.
@@ -47,6 +47,24 @@ impl<R: CommandRunner> CommandRunner for LoggingRunner<R> {
                 self.log_output(&output.stdout);
                 self.log_output(&output.stderr);
             }
+            Err(error) => self.log(format!("  {error}")),
+        }
+        result
+    }
+
+    /// The environment carries secrets, and a program run with one may
+    /// print a secret too (homectl prints the recovery key), so neither is
+    /// logged: only the command and its stderr.
+    async fn run_env(
+        &self,
+        program: &str,
+        args: &[&str],
+        env: &[(&str, &str)],
+    ) -> Result<Output, CoreError> {
+        self.log(format!("$ {program} {}", args.join(" ")));
+        let result = self.inner.run_env(program, args, env).await;
+        match &result {
+            Ok(output) => self.log_output(&output.stderr),
             Err(error) => self.log(format!("  {error}")),
         }
         result

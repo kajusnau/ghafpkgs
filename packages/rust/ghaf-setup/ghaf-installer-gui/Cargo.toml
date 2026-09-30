@@ -16,7 +16,6 @@ name = "ghaf-installer-gui"
 path = "src/main.rs"
 
 [dependencies]
-async-trait.workspace = true
 ghaf-setup-core = { path = "../ghaf-setup-core" }
 ghaf-setup-ui = { path = "../ghaf-setup-ui" }
 indexmap = "2.7.1"

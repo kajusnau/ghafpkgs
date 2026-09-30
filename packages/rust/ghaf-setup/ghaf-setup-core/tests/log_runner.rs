@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 TII (SSRC) and the Ghaf contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use ghaf_installer_gui::log_runner::{LoggingRunner, MAX_OUTPUT_LINES};
+use ghaf_setup_core::log_runner::{LoggingRunner, MAX_OUTPUT_LINES};
 use ghaf_setup_core::proc::{CommandRunner, RecordingRunner};
 use ghaf_setup_core::progress::ProgressEvent;
 use tokio::sync::mpsc::unbounded_channel;
@@ -66,4 +66,27 @@ async fn long_output_keeps_only_its_tail() {
         format!("  … {} more lines", 100 - MAX_OUTPUT_LINES)
     );
     assert_eq!(lines.last().unwrap(), "  line 99");
+}
+
+#[tokio::test]
+async fn run_env_logs_neither_the_environment_nor_stdout() {
+    let inner = RecordingRunner::new();
+    inner.push_ok("recovery-key-words\n");
+    let (tx, mut rx) = unbounded_channel();
+
+    let output = LoggingRunner::new(inner, tx)
+        .run_env(
+            "homectl",
+            &["create", "alice"],
+            &[("NEWPASSWORD", "hunter2")],
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        output.stdout, "recovery-key-words\n",
+        "the caller still gets it"
+    );
+    let lines = logged(&mut rx);
+    assert_eq!(lines, ["$ homectl create alice"]);
 }
