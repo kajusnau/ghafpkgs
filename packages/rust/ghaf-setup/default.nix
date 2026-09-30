@@ -72,7 +72,7 @@ craneLib.buildPackage (
   // {
     inherit cargoArtifacts;
 
-    # Every binary in the workspace; today that is ghaf-installer-gui.
+    # Every binary in the workspace: ghaf-installer-gui and ghaf-user-setup-gui.
     cargoExtraArgs = "--workspace --bins";
 
     # The programs ghaf-setup-core runs by name; a systemd unit's PATH has none of them.
@@ -85,6 +85,8 @@ craneLib.buildPackage (
             coreutils
             efibootmgr
             efitools
+            glibc.bin
+            libfido2
             lvm2
             parted
             systemd
@@ -100,10 +102,11 @@ craneLib.buildPackage (
     };
 
     meta = {
-      description = "COSMIC installer wizard for Ghaf";
+      description = "COSMIC setup wizards for Ghaf: installer and first-boot account";
       longDescription = ''
-        A libcosmic wizard for installing Ghaf to a disk. The logic lives in a
-        UI-free core crate that invokes system tools as subprocesses.
+        libcosmic wizards for installing Ghaf to a disk and for creating the
+        first-boot local account. The logic lives in the UI-free
+        ghaf-setup-core crate, which invokes system tools as subprocesses.
       '';
       homepage = "https://github.com/tiiuae/ghafpkgs";
       license = lib.licenses.asl20;
