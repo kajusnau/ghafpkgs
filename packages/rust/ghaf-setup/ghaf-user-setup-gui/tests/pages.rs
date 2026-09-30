@@ -101,3 +101,54 @@ fn secrets_are_cleared_once_handed_over() {
     page.clear_secrets();
     assert!(page.request().is_none());
 }
+
+use ghaf_setup_core::homed::RecoveryKey;
+use ghaf_setup_core::progress::{Phase, ProgressEvent};
+use ghaf_user_setup_gui::page::running::{self, Outcome};
+
+#[test]
+fn finish_waits_for_the_recovery_key_to_be_acknowledged() {
+    let mut page = running::Page::default();
+    page.apply(ProgressEvent::PhaseStarted(Phase::CreateAccount));
+    page.apply(ProgressEvent::PhaseFinished(Phase::CreateAccount));
+    page.conclude(Ok(Some(RecoveryKey("fhkbl-rtgvb".into()))));
+
+    assert!(matches!(page.outcome(), Outcome::Created { key: Some(_) }));
+    assert!(page.show_next(), "Finish is there");
+    assert!(!page.completed(), "but disabled until acknowledged");
+    page.update(running::Message::Acknowledge(true));
+    assert!(page.completed());
+    assert!(
+        !page.show_back(),
+        "an account cannot be un-created from here"
+    );
+}
+
+#[test]
+fn without_a_recovery_key_finish_is_immediate() {
+    let mut page = running::Page::default();
+    page.conclude(Ok(None));
+    assert!(page.completed());
+}
+
+#[test]
+fn a_failure_offers_back_to_the_form() {
+    let mut page = running::Page::default();
+    page.apply(ProgressEvent::Failed {
+        phase: Phase::CreateAccount,
+        message: "Password too weak".into(),
+        recoverable: true,
+    });
+    page.conclude(Err("homectl failed".into()));
+    assert_eq!(page.outcome(), Outcome::Failed("Password too weak".into()));
+    assert_eq!(page.title(), "Account creation failed");
+    assert!(!page.show_next());
+    assert!(page.show_back(), "Back sits where the wizard always has it");
+}
+
+#[test]
+fn nothing_can_be_pressed_while_creating() {
+    let page = running::Page::default();
+    assert!(!page.show_next() && !page.show_back());
+    assert_eq!(page.outcome(), Outcome::Running);
+}
