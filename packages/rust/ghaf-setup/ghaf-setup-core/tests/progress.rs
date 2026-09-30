@@ -18,6 +18,8 @@ fn phase_labels_are_user_facing() {
         Phase::SecureBoot.active_label(),
         "Enrolling Secure Boot keys"
     );
+    assert_eq!(Phase::CreateAccount.label(), "Create account");
+    assert_eq!(Phase::CreateAccount.active_label(), "Creating account");
 }
 
 #[test]

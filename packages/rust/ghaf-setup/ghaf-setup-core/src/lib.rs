@@ -5,6 +5,7 @@
 //! tested without a compositor, a TTY or a GPU.
 
 pub mod disk;
+pub mod homed;
 pub mod install;
 pub mod log_runner;
 pub mod pace;

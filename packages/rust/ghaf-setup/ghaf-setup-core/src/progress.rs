@@ -10,6 +10,7 @@ pub enum Phase {
     Encryption,
     BootEntry,
     SecureBoot,
+    CreateAccount,
 }
 
 impl Phase {
@@ -21,6 +22,7 @@ impl Phase {
             Phase::Encryption => "Prepare encryption",
             Phase::BootEntry => "Create boot entry",
             Phase::SecureBoot => "Enroll Secure Boot keys",
+            Phase::CreateAccount => "Create account",
         }
     }
 
@@ -32,6 +34,7 @@ impl Phase {
             Phase::Encryption => "Preparing encryption",
             Phase::BootEntry => "Creating boot entry",
             Phase::SecureBoot => "Enrolling Secure Boot keys",
+            Phase::CreateAccount => "Creating account",
         }
     }
 }
