@@ -121,3 +121,37 @@ fn stderr_exactly_at_the_limit_is_not_truncated() {
     // `<=` edge: exactly STDERR_TAIL_BYTES bytes must pass through unchanged.
     assert_eq!(result, full);
 }
+
+#[tokio::test]
+async fn run_env_passes_the_environment_to_the_program() {
+    let output = SystemRunner
+        .run_env("env", &[], &[("GHAF_TEST", "secret")])
+        .await
+        .unwrap();
+    assert!(output.stdout.lines().any(|l| l == "GHAF_TEST=secret"));
+}
+
+#[tokio::test]
+async fn a_failed_run_env_does_not_leak_the_environment_into_the_error() {
+    let error = SystemRunner
+        .run_env("false", &[], &[("NEWPASSWORD", "hunter2")])
+        .await
+        .unwrap_err();
+    assert!(!format!("{error:?}").contains("hunter2"));
+}
+
+#[tokio::test]
+async fn the_recording_runner_records_the_environment() {
+    let runner = RecordingRunner::new();
+    runner.push_ok("");
+    runner.push_ok("");
+    runner.run("true", &[]).await.unwrap();
+    runner
+        .run_env("homectl", &["create"], &[("NEWPASSWORD", "pw")])
+        .await
+        .unwrap();
+    assert_eq!(
+        runner.envs(),
+        [vec![], vec![("NEWPASSWORD".to_string(), "pw".to_string())]]
+    );
+}

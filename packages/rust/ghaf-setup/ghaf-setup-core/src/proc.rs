@@ -42,17 +42,35 @@ pub trait CommandRunner: Send + Sync {
     /// Runs `program` with a fixed argv. There is deliberately no variant
     /// taking a shell string: that would be an interpolation surface.
     async fn run(&self, program: &str, args: &[&str]) -> Result<Output, CoreError>;
+
+    /// Like `run`, with extra environment variables. This is how secrets
+    /// reach a program: unlike argv, the environment is not world-readable
+    /// in /proc, and nothing here logs it.
+    async fn run_env(
+        &self,
+        program: &str,
+        args: &[&str],
+        env: &[(&str, &str)],
+    ) -> Result<Output, CoreError> {
+        let _ = env;
+        self.run(program, args).await
+    }
 }
 
 pub struct SystemRunner;
 
-#[async_trait]
-impl CommandRunner for SystemRunner {
-    async fn run(&self, program: &str, args: &[&str]) -> Result<Output, CoreError> {
+impl SystemRunner {
+    async fn exec(
+        &self,
+        program: &str,
+        args: &[&str],
+        env: &[(&str, &str)],
+    ) -> Result<Output, CoreError> {
         tracing::info!(program, ?args, "running command");
 
         let output = tokio::process::Command::new(program)
             .args(args)
+            .envs(env.iter().copied())
             .output()
             .await?;
 
@@ -70,6 +88,22 @@ impl CommandRunner for SystemRunner {
                 stderr: tail(&stderr),
             })
         }
+    }
+}
+
+#[async_trait]
+impl CommandRunner for SystemRunner {
+    async fn run(&self, program: &str, args: &[&str]) -> Result<Output, CoreError> {
+        self.exec(program, args, &[]).await
+    }
+
+    async fn run_env(
+        &self,
+        program: &str,
+        args: &[&str],
+        env: &[(&str, &str)],
+    ) -> Result<Output, CoreError> {
+        self.exec(program, args, env).await
     }
 }
 
@@ -97,6 +131,7 @@ enum Reply {
 pub struct RecordingRunner {
     replies: Mutex<std::collections::VecDeque<Reply>>,
     calls: Mutex<Vec<(String, Vec<String>)>>,
+    envs: Mutex<Vec<Vec<(String, String)>>>,
 }
 
 impl RecordingRunner {
@@ -104,6 +139,7 @@ impl RecordingRunner {
         Self {
             replies: Mutex::new(std::collections::VecDeque::new()),
             calls: Mutex::new(Vec::new()),
+            envs: Mutex::new(Vec::new()),
         }
     }
 
@@ -124,21 +160,26 @@ impl RecordingRunner {
     pub fn calls(&self) -> Vec<(String, Vec<String>)> {
         self.calls.lock().unwrap().clone()
     }
-}
 
-impl Default for RecordingRunner {
-    fn default() -> Self {
-        Self::new()
+    pub fn envs(&self) -> Vec<Vec<(String, String)>> {
+        self.envs.lock().unwrap().clone()
     }
-}
 
-#[async_trait]
-impl CommandRunner for RecordingRunner {
-    async fn run(&self, program: &str, args: &[&str]) -> Result<Output, CoreError> {
+    fn record(
+        &self,
+        program: &str,
+        args: &[&str],
+        env: &[(&str, &str)],
+    ) -> Result<Output, CoreError> {
         self.calls.lock().unwrap().push((
             program.to_string(),
             args.iter().map(|a| a.to_string()).collect(),
         ));
+        self.envs.lock().unwrap().push(
+            env.iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        );
 
         match self.replies.lock().unwrap().pop_front() {
             Some(Reply::Ok(stdout)) => Ok(Output {
@@ -153,5 +194,27 @@ impl CommandRunner for RecordingRunner {
             }),
             None => panic!("RecordingRunner: unexpected call to `{program}` with {args:?}"),
         }
+    }
+}
+
+impl Default for RecordingRunner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl CommandRunner for RecordingRunner {
+    async fn run(&self, program: &str, args: &[&str]) -> Result<Output, CoreError> {
+        self.record(program, args, &[])
+    }
+
+    async fn run_env(
+        &self,
+        program: &str,
+        args: &[&str],
+        env: &[(&str, &str)],
+    ) -> Result<Output, CoreError> {
+        self.record(program, args, env)
     }
 }
