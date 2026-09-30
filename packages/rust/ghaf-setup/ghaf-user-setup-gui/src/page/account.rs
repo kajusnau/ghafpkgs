@@ -62,6 +62,11 @@ impl Page {
         &self.username
     }
 
+    /// Whether a security key was found; the answer may come after typing.
+    pub fn set_fido_available(&mut self, available: bool) {
+        self.fido_available = available;
+    }
+
     /// Records the availability answer for that exact name.
     pub fn set_username_taken(&mut self, name: &str, taken: bool) {
         self.availability = Some((name.to_string(), taken));

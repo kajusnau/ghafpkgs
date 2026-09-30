@@ -152,3 +152,15 @@ fn nothing_can_be_pressed_while_creating() {
     assert!(!page.show_next() && !page.show_back());
     assert_eq!(page.outcome(), Outcome::Running);
 }
+
+#[test]
+fn a_late_fido_answer_keeps_the_typed_fields() {
+    let mut page = filled(false);
+    page.set_fido_available(true);
+    page.update(Message::ToggleFido(true));
+    let request = page.request().unwrap();
+    assert_eq!(request.username, "alice");
+    assert_eq!(request.real_name, "Alice Liddell");
+    assert_eq!(request.password, "correct horse");
+    assert!(request.fido);
+}
