@@ -40,6 +40,7 @@ struct client {
   int closed;
   struct client *sibling;
   char *buf;
+  int buf_start;
   int buf_size;
   uint64_t rxbytes;
   uint64_t txbytes;
@@ -119,10 +120,23 @@ int start_receive(struct client *data, int epfd) {
   return 1;
 }
 
+int send_buf(struct client *data, int sock) {
+  int len = data->buf_size;
+  if (data->buf_start + len > RECV_BUF_SIZE)
+    len = RECV_BUF_SIZE - data->buf_start;
+  int bytes_sent = send(sock, data->buf + data->buf_start, len, 0);
+  if (bytes_sent > 0) {
+    data->buf_size -= bytes_sent;
+    data->buf_start =
+        data->buf_size ? (data->buf_start + bytes_sent) % RECV_BUF_SIZE : 0;
+  }
+  return bytes_sent;
+}
+
 int switch_mod(struct client *data, int epfd) {
   struct epoll_event ev;
   ev.events = EPOLLRDHUP | EPOLLHUP | EPOLLERR;
-  if (data->buf_size == 0)
+  if (data->buf_size < RECV_BUF_SIZE)
     ev.events |= EPOLLIN;
   if (data->sibling->buf_size)
     ev.events |= EPOLLOUT;
@@ -381,11 +395,14 @@ int main(int argc, char **argv) {
         }
       } else {
         if (events[i].events & EPOLLIN) {
-          if (data->buf_size)
+          if (data->buf_size == RECV_BUF_SIZE)
             continue;
 
-          int bytes_read = read(data->sock, data->buf + data->buf_size,
-                                RECV_BUF_SIZE - data->buf_size);
+          int tail = (data->buf_start + data->buf_size) % RECV_BUF_SIZE;
+          int space = RECV_BUF_SIZE - data->buf_size;
+          if (tail + space > RECV_BUF_SIZE)
+            space = RECV_BUF_SIZE - tail;
+          int bytes_read = read(data->sock, data->buf + tail, space);
           if (bytes_read == 0) {
             close_connections(data, epfd);
             break;
@@ -400,8 +417,7 @@ int main(int argc, char **argv) {
             data->rxbytes += bytes_read;
             data->rxbytes_total += bytes_read;
 
-            int bytes_sent =
-                send(data->sibling->sock, data->buf, data->buf_size, 0);
+            int bytes_sent = send_buf(data, data->sibling->sock);
             if (bytes_sent <= 0) {
               if (errno != EAGAIN && errno != EWOULDBLOCK) {
                 log_error("Failed to send from epollin (%d): %s\n", errno,
@@ -410,8 +426,6 @@ int main(int argc, char **argv) {
                 break;
               }
             } else {
-              data->buf_size -= bytes_sent;
-              memmove(data->buf, data->buf + bytes_sent, data->buf_size);
               data->sibling->txbytes += bytes_sent;
               data->sibling->txbytes_total += bytes_sent;
             }
@@ -458,8 +472,7 @@ int main(int argc, char **argv) {
             }
           } else {
             if (data->sibling->buf_size > 0) {
-              int bytes_sent = send(data->sock, data->sibling->buf,
-                                    data->sibling->buf_size, 0);
+              int bytes_sent = send_buf(data->sibling, data->sock);
               if (bytes_sent <= 0) {
                 if (errno != EAGAIN && errno != EWOULDBLOCK) {
                   log_error("Failed to send from epollout (%d): %s\n", errno,
@@ -468,18 +481,13 @@ int main(int argc, char **argv) {
                 }
                 continue;
               } else {
-                data->sibling->buf_size -= bytes_sent;
-                memmove(data->sibling->buf, data->sibling->buf + bytes_sent,
-                        data->sibling->buf_size);
                 data->txbytes += bytes_sent;
                 data->txbytes_total += bytes_sent;
               }
             }
 
-            if (data->sibling->buf_size == 0) {
-              if (!switch_mod(data, epfd) || !switch_mod(data->sibling, epfd))
-                break;
-            }
+            if (!switch_mod(data, epfd) || !switch_mod(data->sibling, epfd))
+              break;
 
             show_stat(data, 0);
             show_stat(data->sibling, 0);
