@@ -20,6 +20,7 @@
 #define MAX_EVENTS 64
 #define RECV_BUF_SIZE (1024 * 1024)
 #define STAT_INTERVAL 1.0
+#define VSOCK_BUF_SIZE (4ull * 1024 * 1024)
 
 static int verbose = 0;
 
@@ -118,6 +119,16 @@ int start_receive(struct client *data, int epfd) {
   }
 
   return 1;
+}
+
+void set_vsock_buf_size(int sock) {
+  unsigned long long size = VSOCK_BUF_SIZE;
+  // The kernel clamps BUFFER_SIZE to BUFFER_MAX_SIZE, so raise the max first.
+  if (setsockopt(sock, AF_VSOCK, SO_VM_SOCKETS_BUFFER_MAX_SIZE, &size,
+                 sizeof(size)) == -1 ||
+      setsockopt(sock, AF_VSOCK, SO_VM_SOCKETS_BUFFER_SIZE, &size,
+                 sizeof(size)) == -1)
+    log_error("Failed to set vsock buffer size: %s\n", strerror(errno));
 }
 
 int send_buf(struct client *data, int sock) {
@@ -319,6 +330,8 @@ int main(int argc, char **argv) {
           break;
         }
 
+        set_vsock_buf_size(rx_sock);
+
         struct client *rx_data = malloc(sizeof(struct client));
         memset(rx_data, 0, sizeof(struct client));
         rx_data->sock = rx_sock;
@@ -345,6 +358,8 @@ int main(int argc, char **argv) {
           close_connections(rx_data, epfd);
           continue;
         }
+
+        set_vsock_buf_size(tx_sock);
 
         struct sockaddr_vm remoteaddr = {};
         remoteaddr.svm_family = AF_VSOCK;
